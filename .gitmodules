@@ -1,0 +1,6 @@
+[submodule "jameica"]
+	path = jameica
+	url = https://github.com/willuhn/jameica.git
+[submodule "hibiscus"]
+	path = hibiscus
+	url = https://github.com/willuhn/hibiscus.git
