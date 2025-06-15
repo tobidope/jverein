@@ -87,7 +87,7 @@ public class DBSupportMySqlImpl extends AbstractDBSupportImpl
       try
       {
         new JVereinUpdateProvider(conn, Application.getCallback()
-            .getStartupMonitor());
+            .getStartupMonitor(), this.getClass().getName());
       }
       catch (Exception e2)
       {

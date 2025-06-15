@@ -34,7 +34,6 @@ import de.jost_net.JVerein.Variable.MitgliedVar;
 import de.jost_net.JVerein.Variable.RechnungVar;
 import de.jost_net.JVerein.keys.Zahlungsweg;
 import de.jost_net.JVerein.rmi.Einstellung;
-import de.jost_net.JVerein.rmi.JVereinDBService;
 import de.jost_net.JVerein.server.DDLTool.AbstractDDLUpdate;
 import de.willuhn.jameica.security.Wallet;
 import de.willuhn.logging.Logger;
@@ -54,11 +53,12 @@ public class JVereinUpdateProvider
 
   public static final String H2 = DBSupportH2Impl.class.getName();
 
-  public JVereinUpdateProvider(Connection conn, ProgressMonitor progressmonitor)
+  public JVereinUpdateProvider(Connection conn, ProgressMonitor progressmonitor,
+      String driver)
       throws ApplicationException
   {
     this.progressmonitor = progressmonitor;
-    driver = JVereinDBService.SETTINGS.getString("database.driver", H2);
+    this.driver = driver;
 
     int cv = getCurrentVersion(conn);
     if (cv == 0)
@@ -90,7 +90,7 @@ public class JVereinUpdateProvider
     cv++;
     try
     {
-      while (callMethod2(driver, progressmonitor, conn, cv))
+      while (callMethod2(this.driver, progressmonitor, conn, cv))
       {
         cv++;
       }
@@ -290,8 +290,6 @@ public class JVereinUpdateProvider
   public void execute(Connection conn, Map<String, String> statements,
       int version) throws ApplicationException
   {
-    String driver = JVereinDBService.SETTINGS.getString("database.driver",
-        DBSupportH2Impl.class.getName());
     String sql = statements.get(driver);
     if (sql != null)
     {
