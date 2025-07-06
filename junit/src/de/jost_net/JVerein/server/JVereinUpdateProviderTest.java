@@ -3,6 +3,8 @@ package de.jost_net.JVerein.server;
 import de.willuhn.util.ProgressMonitor;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -25,8 +27,9 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class JVereinUpdateProviderTest
 {
-  private static MySQLContainer<?> container = new MySQLContainer<>(
-      "mysql:8");
+  private static final MySQLContainer<?> container = new MySQLContainer<>(
+      "mysql:8").withUrlParam("useUnicode", "Yes")
+      .withUrlParam("characterEncoding", "ISO8859_1");
   @Mock
   private ProgressMonitor monitor;
 
@@ -45,16 +48,17 @@ class JVereinUpdateProviderTest
   private static Stream<Arguments> provider() throws SQLException
   {
     Connection h2Connection = DriverManager.getConnection(
-        "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1", "sa", "");
+        "jdbc:h2:mem:testdb", "sa", "");
 
     var mysqlConnection = DriverManager.getConnection(container.getJdbcUrl(),
         container.getUsername(), container.getPassword());
 
     return Stream.of(
-        Arguments.of(h2Connection, DBSupportH2Impl.class.getName()),
-        Arguments.of(mysqlConnection, DBSupportMySqlImpl.class.getName()));
+        Arguments.of(Named.named("H2", h2Connection), DBSupportH2Impl.class.getName()),
+        Arguments.of(Named.named("mySQL", mysqlConnection), DBSupportMySqlImpl.class.getName()));
   }
 
+  @DisplayName("Test migrations for H2 and MySQL")
   @ParameterizedTest
   @MethodSource("provider")
   void testMigrations(Connection connection, String driver)

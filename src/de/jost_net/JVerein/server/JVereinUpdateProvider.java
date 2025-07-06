@@ -10,25 +10,11 @@
  *
  * You should have received a copy of the GNU General Public License along with this program.  If not, 
  * see <http://www.gnu.org/licenses/>.
- * 
+ *
  * heiner@jverein.de
  * www.jverein.de
  **********************************************************************/
 package de.jost_net.JVerein.server;
-
-import java.io.StringReader;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import de.jost_net.JVerein.Variable.MitgliedVar;
 import de.jost_net.JVerein.Variable.RechnungVar;
@@ -41,21 +27,30 @@ import de.willuhn.sql.ScriptExecutor;
 import de.willuhn.util.ApplicationException;
 import de.willuhn.util.ProgressMonitor;
 
+import java.io.StringReader;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.sql.*;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class JVereinUpdateProvider
 {
-  private ProgressMonitor progressmonitor;
-
-  private StringBuilder sb;
-
-  private String driver;
-
   public static final String MYSQL = DBSupportMySqlImpl.class.getName();
 
   public static final String H2 = DBSupportH2Impl.class.getName();
 
+  private final String driver;
+
+  private ProgressMonitor progressmonitor;
+
+  private StringBuilder sb;
+
   public JVereinUpdateProvider(Connection conn, ProgressMonitor progressmonitor,
-      String driver)
-      throws ApplicationException
+      String driver) throws ApplicationException
   {
     this.progressmonitor = progressmonitor;
     this.driver = driver;
@@ -101,35 +96,12 @@ public class JVereinUpdateProvider
     }
   }
 
-  public int getCurrentVersion(Connection conn)
-  {
-    int ret = 0;
-    try
-    {
-      Statement stmt = conn.createStatement();
-      ResultSet rs = stmt
-          .executeQuery("SELECT version FROM version WHERE id = 1");
-      if (rs.next())
-      {
-        ret = rs.getInt(1);
-      }
-      rs.close();
-      stmt.close();
-    }
-    catch (SQLException e)
-    {
-      return 0;
-    }
-    return ret;
-  }
-
   // In den Versionen 2.8.0 und 2.8.1 war Liquibase im Einsatz. Wegen Problemen
   // mit MySQL wurde Liquibase wieder ausgebaut.
   public static Integer getLiquibaseVersion(Connection connection)
   {
-    try
+    try(Statement stmt = connection.createStatement())
     {
-      Statement stmt = connection.createStatement();
       ResultSet rs = stmt.executeQuery(
           "select ID,ORDEREXECUTED from DATABASECHANGELOG where ORDEREXECUTED = (select max(ORDEREXECUTED) from DATABASECHANGELOG)");
       if (rs.next())
@@ -197,28 +169,45 @@ public class JVereinUpdateProvider
 
   }
 
-  public ProgressMonitor getProgressMonitor()
+  public int getCurrentVersion(Connection conn)
   {
-    return progressmonitor;
+    try (Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery(
+            "SELECT version FROM version WHERE id = 1"))
+    {
+
+      if (rs.next())
+      {
+        return rs.getInt(1);
+      }
+      return 0;
+    }
+    catch (SQLException e)
+    {
+      return 0;
+    }
   }
 
   private void setNewVersion(Connection conn, int newVersion)
       throws ApplicationException
   {
-    try
+    try (var stmt = conn.prepareStatement(
+        "UPDATE version SET version = ? WHERE id = 1"))
     {
       String msg = "JVerein-DB-Update: " + newVersion;
       progressmonitor.setStatusText(msg);
       Logger.info(msg);
-      Statement stmt = conn.createStatement();
-      int anzahl = stmt.executeUpdate(
-          "UPDATE version SET version = " + newVersion + " WHERE id = 1");
+      stmt.setInt(1, newVersion);
+      int anzahl = stmt.executeUpdate();
       if (anzahl == 0)
       {
-        stmt.executeUpdate(
-            "INSERT INTO version VALUES (1, " + newVersion + ")");
+        try (var update = conn.prepareStatement(
+            "INSERT INTO version VALUES (1, ?)"))
+        {
+          update.setInt(1, newVersion);
+          update.executeUpdate();
+        }
       }
-      stmt.close();
     }
     catch (SQLException e)
     {
@@ -230,7 +219,7 @@ public class JVereinUpdateProvider
 
   private boolean callMethod(Connection conn, int currentversion)
   {
-    Method method = null;
+    Method method;
 
     try
     {
@@ -254,14 +243,15 @@ public class JVereinUpdateProvider
     try
     {
       DecimalFormat df = new DecimalFormat("0000");
-      String clazzname = "de.jost_net.JVerein.server.DDLTool.Updates.Update"
-          + df.format(currentversion);
+      String clazzname =
+          "de.jost_net.JVerein.server.DDLTool.Updates.Update" + df.format(
+              currentversion);
       Class<?> clazz = Class.forName(clazzname);
       Constructor<?> ctor = clazz.getConstructor(String.class,
           ProgressMonitor.class, Connection.class);
       AbstractDDLUpdate object = (AbstractDDLUpdate) ctor.newInstance(driver,
           monitor, conn);
-      Method method = object.getClass().getMethod("run", new Class[] {});
+      Method method = object.getClass().getMethod("run");
       Object[] args = new Object[] {};
       method.invoke(object, args);
     }
@@ -1881,8 +1871,8 @@ public class JVereinUpdateProvider
       }
       rs.close();
       stmt.close();
-      PreparedStatement pstmt = conn
-          .prepareStatement("INSERT INTO eigenschaft (bezeichnung) values (?)");
+      PreparedStatement pstmt = conn.prepareStatement(
+          "INSERT INTO eigenschaft (bezeichnung) values (?)");
       for (String eig : eigenschaften)
       {
         pstmt.setString(1, eig);
@@ -1904,8 +1894,8 @@ public class JVereinUpdateProvider
     {
       Map<String, String> eigenschaften = new HashMap<String, String>();
       Statement stmt = conn.createStatement();
-      ResultSet rs = stmt
-          .executeQuery("select id, bezeichnung from eigenschaft");
+      ResultSet rs = stmt.executeQuery(
+          "select id, bezeichnung from eigenschaft");
       while (rs.next())
       {
         eigenschaften.put(rs.getString(1), rs.getString(2));
@@ -4342,11 +4332,14 @@ public class JVereinUpdateProvider
         + sql1 + MitgliedVar.STAAT.getName() + sql2 + STAAT + sql3 //
         + sql1 + MitgliedVar.ZAHLUNGSRHYTMUS.getName() + sql2 + ZAHLUNGSRHYTMUS
         + sql3 //
-        + sql1 + MitgliedVar.ZAHLUNGSWEG.getName() + sql2 + ZAHLUNGSWEG + sql3 //
+        + sql1 + MitgliedVar.ZAHLUNGSWEG.getName() + sql2 + ZAHLUNGSWEG + sql3
+        //
         + sql1 + MitgliedVar.BLZ.getName() + sql2 + BLZ + sql3 //
         + sql1 + MitgliedVar.KONTO.getName() + sql2 + KONTO + sql3 //
-        + sql1 + MitgliedVar.KONTOINHABER.getName() + sql2 + KONTOINHABER + sql3 //
-        + sql1 + MitgliedVar.GEBURTSDATUM.getName() + sql2 + GEBURTSDATUM + sql3 //
+        + sql1 + MitgliedVar.KONTOINHABER.getName() + sql2 + KONTOINHABER + sql3
+        //
+        + sql1 + MitgliedVar.GEBURTSDATUM.getName() + sql2 + GEBURTSDATUM + sql3
+        //
         + sql1 + MitgliedVar.GESCHLECHT.getName() + sql2 + GESCHLECHT + sql3 //
         + sql1 + MitgliedVar.TELEFONDIENSTLICH.getName() + sql2
         + TELEFONDIENSTLICH + sql3 //
@@ -4360,17 +4353,17 @@ public class JVereinUpdateProvider
         + sql1 + MitgliedVar.KUENDIGUNG.getName() + sql2 + KUENDIGUNG + sql3 //
         + sql1 + MitgliedVar.BEITRAGSGRUPPE_BEZEICHNUNG.getName() + sql2
         + BEITRAGSGRUPPE + sql3 //
-        + sql1 + RechnungVar.ZAHLUNGSGRUND.getName() + sql2
-        + ZAHLUNGSGRUND + sql3//
-        + sql1 + RechnungVar.ZAHLUNGSGRUND1.getName() + sql2
-        + ZAHLUNGSGRUND1 + sql3//
-        + sql1 + RechnungVar.ZAHLUNGSGRUND2.getName() + sql2
-        + ZAHLUNGSGRUND2 + sql3//
-        + sql1 + RechnungVar.BUCHUNGSDATUM.getName() + sql2
-        + BUCHUNGSDATUM + sql3//
+        + sql1 + RechnungVar.ZAHLUNGSGRUND.getName() + sql2 + ZAHLUNGSGRUND
+        + sql3//
+        + sql1 + RechnungVar.ZAHLUNGSGRUND1.getName() + sql2 + ZAHLUNGSGRUND1
+        + sql3//
+        + sql1 + RechnungVar.ZAHLUNGSGRUND2.getName() + sql2 + ZAHLUNGSGRUND2
+        + sql3//
+        + sql1 + RechnungVar.BUCHUNGSDATUM.getName() + sql2 + BUCHUNGSDATUM
+        + sql3//
         + sql1 + "tagesdatum" + sql2 + "Tagesdatum" + sql3//
         + sql1 + RechnungVar.BETRAG.getName() + sql2 + BETRAG + sql3//
-    ;
+        ;
     Map<String, String> statements = new HashMap<String, String>();
     // Update fuer H2
     statements.put(DBSupportH2Impl.class.getName(), sql);
@@ -4450,9 +4443,9 @@ public class JVereinUpdateProvider
     {
       // H2
       Map<String, String[]> statements = new HashMap<String, String[]>();
-      statements.put(DBSupportH2Impl.class.getName(),
-          new String[] { "ALTER TABLE " + b.getTabelle() + " ALTER COLUMN "
-              + b.getSpalte() + " BOOLEAN;\n" });
+      statements.put(DBSupportH2Impl.class.getName(), new String[] {
+          "ALTER TABLE " + b.getTabelle() + " ALTER COLUMN " + b.getSpalte()
+              + " BOOLEAN;\n" });
       execute(conn, statements, 203, true);
       // MySQL
       statements = new HashMap<String, String[]>();
@@ -4468,30 +4461,6 @@ public class JVereinUpdateProvider
           "ALTER TABLE `" + b.getTabelle() + "` CHANGE COLUMN `" + b.getSpalte()
               + "_b` `" + b.getSpalte() + "` BIT(1);\n" });
       execute(conn, statements, 203, true);
-    }
-  }
-
-  public class BooleanUpdate
-  {
-
-    private String tabelle;
-
-    private String spalte;
-
-    public BooleanUpdate(String tabelle, String spalte)
-    {
-      this.tabelle = tabelle;
-      this.spalte = spalte;
-    }
-
-    public String getTabelle()
-    {
-      return tabelle;
-    }
-
-    public String getSpalte()
-    {
-      return spalte;
     }
   }
 
@@ -5722,8 +5691,9 @@ public class JVereinUpdateProvider
   {
     Map<String, String> statements = new HashMap<String, String>();
     // Update fuer H2
-    String sql = "UPDATE mitglied set mandatdatum = eintritt where zahlungsweg = "
-        + Zahlungsweg.BASISLASTSCHRIFT + ";\n";
+    String sql =
+        "UPDATE mitglied set mandatdatum = eintritt where zahlungsweg = "
+            + Zahlungsweg.BASISLASTSCHRIFT + ";\n";
     statements.put(DBSupportH2Impl.class.getName(), sql);
 
     // Update fuer MySQL
@@ -6895,9 +6865,9 @@ public class JVereinUpdateProvider
         alterColumn("einstellung", "name", "VARCHAR(70)"));
 
     // Update fuer MySQL
-    statements.put(DBSupportMySqlImpl.class.getName(), alterColumn(
-        "einstellung", "name",
-        "VARCHAR(70) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci"));
+    statements.put(DBSupportMySqlImpl.class.getName(),
+        alterColumn("einstellung", "name",
+            "VARCHAR(70) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci"));
     execute(conn, statements, 340);
   }
 
@@ -7160,8 +7130,8 @@ public class JVereinUpdateProvider
     try
     {
       Statement stmt = conn.createStatement();
-      ResultSet rs = stmt
-          .executeQuery("select imap_auth_pwd from einstellung;");
+      ResultSet rs = stmt.executeQuery(
+          "select imap_auth_pwd from einstellung;");
       if (rs.next())
       {
         imapPwd = rs.getString(1);
@@ -7250,6 +7220,30 @@ public class JVereinUpdateProvider
           + ";\n";
     }
     return "";
+  }
+
+  public class BooleanUpdate
+  {
+
+    private String tabelle;
+
+    private String spalte;
+
+    public BooleanUpdate(String tabelle, String spalte)
+    {
+      this.tabelle = tabelle;
+      this.spalte = spalte;
+    }
+
+    public String getTabelle()
+    {
+      return tabelle;
+    }
+
+    public String getSpalte()
+    {
+      return spalte;
+    }
   }
 
 }
