@@ -15,7 +15,8 @@
   <packaging>jar</packaging>
 
   <properties>
-    <jameica.cache.dir>${build.cache.dir}/jameica-${jameica.version}</jameica.cache.dir>
+    <jameica.cache.dir>${build.cache.dir}/jameica</jameica.cache.dir>
+    <jameica.extract.dir>${build.cache.dir}/jameica-${jameica.version}</jameica.extract.dir>
     <jameica.zip>${build.cache.dir}/jameica-${jameica.version}.zip</jameica.zip>
     <jameica.marker>${jameica.cache.dir}/.maven-built</jameica.marker>
   </properties>
@@ -39,14 +40,16 @@
                 <get src="https://github.com/willuhn/jameica/archive/refs/tags/${jameica.version}.zip"
                      dest="${jameica.zip}"
                      skipexisting="true" />
-                <mkdir dir="${jameica.cache.dir}" />
-                <unzip src="${jameica.zip}" dest="${jameica.cache.dir}" overwrite="false" />
-                <ant dir="${jameica.cache.dir}/jameica-${jameica.version}" antfile="build/build.xml" inheritall="false">
+                <delete dir="${jameica.extract.dir}" />
+                <delete dir="${jameica.cache.dir}" />
+                <unzip src="${jameica.zip}" dest="${build.cache.dir}" overwrite="true" />
+                <move file="${jameica.extract.dir}" tofile="${jameica.cache.dir}" />
+                <ant dir="${jameica.cache.dir}" antfile="build/build.xml" inheritall="false">
                   <target name="nightly" />
                 </ant>
-                <available file="${jameica.cache.dir}/jameica-${jameica.version}/releases/jameica-lib.jar" property="jameica.lib.exists" />
+                <available file="${jameica.cache.dir}/releases/jameica-lib.jar" property="jameica.lib.exists" />
                 <fail unless="jameica.lib.exists" message="Jameica build did not produce releases/jameica-lib.jar" />
-                <copy file="${jameica.cache.dir}/jameica-${jameica.version}/releases/jameica-lib.jar"
+                <copy file="${jameica.cache.dir}/releases/jameica-lib.jar"
                       tofile="${project.build.directory}/${project.build.finalName}.jar"
                       overwrite="true" />
                 <touch file="${jameica.marker}" />

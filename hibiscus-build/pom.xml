@@ -15,7 +15,8 @@
   <packaging>jar</packaging>
 
   <properties>
-    <hibiscus.cache.dir>${build.cache.dir}/hibiscus-${hibiscus.version}</hibiscus.cache.dir>
+    <hibiscus.cache.dir>${build.cache.dir}/hibiscus</hibiscus.cache.dir>
+    <hibiscus.extract.dir>${build.cache.dir}/hibiscus-${hibiscus.version}</hibiscus.extract.dir>
     <hibiscus.zip>${build.cache.dir}/hibiscus-${hibiscus.version}.zip</hibiscus.zip>
     <hibiscus.marker>${hibiscus.cache.dir}/.maven-built</hibiscus.marker>
   </properties>
@@ -48,14 +49,16 @@
                 <get src="https://github.com/willuhn/hibiscus/archive/refs/tags/${hibiscus.version}.zip"
                      dest="${hibiscus.zip}"
                      skipexisting="true" />
-                <mkdir dir="${hibiscus.cache.dir}" />
-                <unzip src="${hibiscus.zip}" dest="${hibiscus.cache.dir}" overwrite="false" />
-                <ant dir="${hibiscus.cache.dir}/hibiscus-${hibiscus.version}" antfile="build/build.xml" inheritall="false">
+                <delete dir="${hibiscus.extract.dir}" />
+                <delete dir="${hibiscus.cache.dir}" />
+                <unzip src="${hibiscus.zip}" dest="${build.cache.dir}" overwrite="true" />
+                <move file="${hibiscus.extract.dir}" tofile="${hibiscus.cache.dir}" />
+                <ant dir="${hibiscus.cache.dir}" antfile="build/build.xml" inheritall="false">
                   <target name="nightly" />
                 </ant>
-                <available file="${hibiscus.cache.dir}/hibiscus-${hibiscus.version}/releases/hibiscus-lib.jar" property="hibiscus.lib.exists" />
+                <available file="${hibiscus.cache.dir}/releases/hibiscus-lib.jar" property="hibiscus.lib.exists" />
                 <fail unless="hibiscus.lib.exists" message="Hibiscus build did not produce releases/hibiscus-lib.jar" />
-                <copy file="${hibiscus.cache.dir}/hibiscus-${hibiscus.version}/releases/hibiscus-lib.jar"
+                <copy file="${hibiscus.cache.dir}/releases/hibiscus-lib.jar"
                       tofile="${project.build.directory}/${project.build.finalName}.jar"
                       overwrite="true" />
                 <touch file="${hibiscus.marker}" />
