@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.openjverein</groupId>
+    <artifactId>jverein-parent</artifactId>
+    <version>3.2.0</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>hibiscus-api</artifactId>
+  <packaging>jar</packaging>
+
+  <properties>
+    <hibiscus.cache.dir>${build.cache.dir}/hibiscus-${hibiscus.version}</hibiscus.cache.dir>
+    <hibiscus.zip>${build.cache.dir}/hibiscus-${hibiscus.version}.zip</hibiscus.zip>
+    <hibiscus.marker>${hibiscus.cache.dir}/.maven-built</hibiscus.marker>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>jameica-api</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>${maven.antrun.plugin.version}</version>
+        <executions>
+          <execution>
+            <id>build-hibiscus-lib</id>
+            <phase>package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <mkdir dir="${build.cache.dir}" />
+                <get src="https://github.com/willuhn/hibiscus/archive/refs/tags/${hibiscus.version}.zip"
+                     dest="${hibiscus.zip}"
+                     skipexisting="true" />
+                <mkdir dir="${hibiscus.cache.dir}" />
+                <unzip src="${hibiscus.zip}" dest="${hibiscus.cache.dir}" overwrite="false" />
+                <ant dir="${hibiscus.cache.dir}/hibiscus-${hibiscus.version}" antfile="build/build.xml" inheritall="false">
+                  <target name="nightly" />
+                </ant>
+                <available file="${hibiscus.cache.dir}/hibiscus-${hibiscus.version}/releases/hibiscus-lib.jar" property="hibiscus.lib.exists" />
+                <fail unless="hibiscus.lib.exists" message="Hibiscus build did not produce releases/hibiscus-lib.jar" />
+                <copy file="${hibiscus.cache.dir}/hibiscus-${hibiscus.version}/releases/hibiscus-lib.jar"
+                      tofile="${project.build.directory}/${project.build.finalName}.jar"
+                      overwrite="true" />
+                <touch file="${hibiscus.marker}" />
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

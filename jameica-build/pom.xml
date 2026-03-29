@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.openjverein</groupId>
+    <artifactId>jverein-parent</artifactId>
+    <version>3.2.0</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>jameica-api</artifactId>
+  <packaging>jar</packaging>
+
+  <properties>
+    <jameica.cache.dir>${build.cache.dir}/jameica-${jameica.version}</jameica.cache.dir>
+    <jameica.zip>${build.cache.dir}/jameica-${jameica.version}.zip</jameica.zip>
+    <jameica.marker>${jameica.cache.dir}/.maven-built</jameica.marker>
+  </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>${maven.antrun.plugin.version}</version>
+        <executions>
+          <execution>
+            <id>build-jameica-lib</id>
+            <phase>package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <mkdir dir="${build.cache.dir}" />
+                <get src="https://github.com/willuhn/jameica/archive/refs/tags/${jameica.version}.zip"
+                     dest="${jameica.zip}"
+                     skipexisting="true" />
+                <mkdir dir="${jameica.cache.dir}" />
+                <unzip src="${jameica.zip}" dest="${jameica.cache.dir}" overwrite="false" />
+                <ant dir="${jameica.cache.dir}/jameica-${jameica.version}" antfile="build/build.xml" inheritall="false">
+                  <target name="nightly" />
+                </ant>
+                <available file="${jameica.cache.dir}/jameica-${jameica.version}/releases/jameica-lib.jar" property="jameica.lib.exists" />
+                <fail unless="jameica.lib.exists" message="Jameica build did not produce releases/jameica-lib.jar" />
+                <copy file="${jameica.cache.dir}/jameica-${jameica.version}/releases/jameica-lib.jar"
+                      tofile="${project.build.directory}/${project.build.finalName}.jar"
+                      overwrite="true" />
+                <touch file="${jameica.marker}" />
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
